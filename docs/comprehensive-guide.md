@@ -1,0 +1,2 @@
+--8<-- "_includes/intro.md"
+--8<-- "integrations/builtin/core-nodes/n8n-nodes-base.code/common-issues.md"
