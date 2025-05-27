@@ -56,11 +56,19 @@ def process_items(items, output, docs_dir):
                 process_items(sub_items, output, docs_dir)
         else:
             path = docs_dir / item
-            if path.is_dir():
-                for md_file in path.glob('**/*.md'):
-                    output.append(process_file(md_file))
-            else:
-                output.append(process_file(path))
+            if not path.exists():
+                print(f"⚠️ Navigation entry '{item}' not found at {path}")
+                continue
+            try:
+                if path.is_dir():
+                    print(f"Processing directory: {path}")
+                    for md_file in path.glob('**/*.md'):
+                        output.append(process_file(md_file))
+                else:
+                    print(f"Processing file: {path}")
+                    output.append(process_file(path))
+            except Exception as e:
+                print(f"🚨 Error processing {path}: {str(e)}")
 
 if __name__ == '__main__':
     main()
