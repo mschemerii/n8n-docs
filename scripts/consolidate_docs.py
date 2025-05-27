@@ -17,7 +17,71 @@ def process_includes(content, base_path):
 def process_file(path):
     with open(path) as f:
         content = f.read()
-    return process_includes(content, path)
+    in_frontmatter = False
+    content_lines = []
+    current_url = None
+    for line in content.split('\n'):
+        if line.startswith('---'):
+            in_frontmatter = not in_frontmatter
+            continue
+        if line.startswith('#https://'):
+            current_url = line[1:].strip()
+            continue
+        if line.startswith('description: ') and current_url:
+            title = line.split('description: ')[1].strip()
+            content_lines.append(f'## [{title}]({current_url})\n')
+            current_url = None
+            continue
+        content_lines.append(line)
+    processed_content = '\n'.join(content_lines)
+    return process_includes(processed_content, path)
+
+def process_navigation():
+    # Load MkDocs configuration for validation
+    mkdocs_config = yaml.safe_load(open('../mkdocs.yml'))
+    
+    # Process nav.yml with MkDocs validation rules
+    nav = yaml.safe_load(open('../nav.yml'))
+    validated_nav = validate_nav_structure(nav, mkdocs_config)
+    
+    # New frontmatter parsing logic
+    for section in validated_nav:
+        process_section(section)
+
+def validate_nav_structure(nav, config):
+    """Validate navigation against MkDocs configuration rules"""
+    validated = []
+    omitted_files = config.get('validation', {}).get('nav', {}).get('omitted_files', [])
+    allow_absolute = config.get('validation', {}).get('nav', {}).get('absolute_links', 'ignore')
+
+    for item in nav:
+        if isinstance(item, dict):
+            for title, children in item.items():
+                filtered = [c for c in children 
+                          if not (isinstance(c, str) and any(c.endswith(f) for f in omitted_files))]
+                if filtered:
+                    validated.append({title: validate_nav_structure(filtered, config)})
+        elif isinstance(item, str):
+            if not any(item.endswith(f) for f in omitted_files):
+                if item.startswith('http') and allow_absolute == 'warn':
+                    print(f"⚠️ Absolute link found: {item}")
+                validated.append(item)
+    return validated
+
+def process_section(section, depth=1):
+    """Process navigation section with proper header hierarchy"""
+    if isinstance(section, dict):
+        for title, items in section.items():
+            yield f"{'#' * depth} {title}\n"
+            for item in items:
+                yield from process_section(item, depth+1)
+    elif isinstance(section, list):
+        for item in section:
+            yield from process_section(item, depth)
+    else:
+        path = Path('docs') / section
+        if path.exists():
+            yield process_file(path)
 
 def main():
     docs_dir = Path('docs')
